@@ -243,6 +243,19 @@ const function New(): Presenter
 	Tone.Brightness = 0.07
 	Tone.Parent = Lit
 
+	-- the Retro tonemapper, and a bloom that glows nothing (its threshold is above any color): the effects the place had when this was made
+	const Grade = Lit:FindFirstChildOfClass("ColorGradingEffect") or Instance.new("ColorGradingEffect")
+	const Bloom = Lit:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
+
+	Grade.TonemapperPreset = Enum.TonemapperPreset.Retro
+	Grade.Enabled = true
+	Grade.Parent = Lit
+	Bloom.Intensity = 0
+	Bloom.Size = 0
+	Bloom.Threshold = 4
+	Bloom.Enabled = true
+	Bloom.Parent = Lit
+
 	const SpriteTemplate = Sprites.NewTemplate(Folder)
 
 	return { Folder = Folder, Sprites = Sprites.New(Folder, SpriteTemplate), Entries = {}, Pinned = {}, Images = {}, Appearances = {}, Queue = {}, Workers = 0, Preloading = {}, DemoPlans = {}, StagedDemo = nil, Generation = 0, Dynamics = {}, DynamicStamp = 0, Created = 0, Level = -1, AreaIndex = -1, Loading = false, Parts = {}, CFrames = {}, CallsByPass = {}, PreparedEntries = {}, DrawNumbers = {}, UseStamp = 0, UsedEntries = {}, ShownEntries = {} }
