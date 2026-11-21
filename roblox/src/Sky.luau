@@ -85,16 +85,24 @@ export type Backdrop = {
 	Mode: string,
 }
 
+-- Shows the six faces (front, back, left, right, up, down) on the sky: it is taken out of Lighting while they are set and put back
+-- after, as it was made before the sky always stayed in Lighting
+const function ShowFaces(Cube: Sky, Faces: { Content })
+	Cube.Parent = nil
+	Cube.SkyboxFrontContent = Faces[1]
+	Cube.SkyboxBackContent = Faces[2]
+	Cube.SkyboxLeftContent = Faces[3]
+	Cube.SkyboxRightContent = Faces[4]
+	Cube.SkyboxUpContent = Faces[5]
+	Cube.SkyboxDownContent = Faces[6]
+	Cube.Parent = Lighting
+end
+
 -- Every face of the sky shows the black pixel: nothing is behind the world
 const function ShowVoid(Cube: Sky, Void: EditableImage)
 	const Black = Content.fromObject(Void)
 
-	Cube.SkyboxFrontContent = Black
-	Cube.SkyboxBackContent = Black
-	Cube.SkyboxLeftContent = Black
-	Cube.SkyboxRightContent = Black
-	Cube.SkyboxUpContent = Black
-	Cube.SkyboxDownContent = Black
+	ShowFaces(Cube, { Black, Black, Black, Black, Black, Black })
 end
 
 const function New(): Backdrop
@@ -111,7 +119,6 @@ const function New(): Backdrop
 	Cube.CelestialBodiesShown = false
 	Cube.StarCount = 0
 	ShowVoid(Cube, Void)
-	Cube.Parent = Lighting
 
 	Part.Name = "Sky"
 	Part.Anchored = true
@@ -351,14 +358,8 @@ const function Present(Self: Backdrop, Frame: Recorder.Frame)
 
 		if Self.Active ~= Found then
 			const Faces = Found.Faces :: { Content }
-			const Cube = Self.Cube
 
-			Cube.SkyboxFrontContent = Faces[1]
-			Cube.SkyboxBackContent = Faces[2]
-			Cube.SkyboxLeftContent = Faces[3]
-			Cube.SkyboxRightContent = Faces[4]
-			Cube.SkyboxUpContent = Faces[5]
-			Cube.SkyboxDownContent = Faces[6]
+			ShowFaces(Self.Cube, Faces)
 			Self.Active = Found
 		end
 

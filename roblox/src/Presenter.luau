@@ -225,26 +225,17 @@ const function New(): Presenter
 	const Lit = game:GetService("Lighting")
 
 	Lit.Brightness = 0
-	Lit.ClockTime = 0
+	Lit.ClockTime = 14
 	Lit.GeographicLatitude = 0
 	Lit.GlobalShadows = false
 	Lit.Ambient = Color3.new(1, 1, 1)
 	Lit.OutdoorAmbient = Color3.new(1, 1, 1)
 	Lit.EnvironmentDiffuseScale = 0
 	Lit.EnvironmentSpecularScale = 0
-	-- Roblox holds the bright levels back (a white shows as 224): a gain after its tone curve (a color correction: contrast 0.14 and
-	-- brightness 0.07 make output = 1.14 * input) brings white back to the top (roblox/src/ColorCurve measured it)
 	Lit.ExposureCompensation = 0
 
-	-- (the warm-up makes a presenter too: one effect only)
-	const Tone = (Lit:FindFirstChild("SM64Tone") :: ColorCorrectionEffect?) or Instance.new("ColorCorrectionEffect")
-
-	Tone.Name = "SM64Tone"
-	Tone.Contrast = 0.14
-	Tone.Brightness = 0.07
-	Tone.Parent = Lit
-
-	-- the Retro tonemapper, and a bloom that glows nothing (its threshold is above any color): the effects the place had when this was made
+	-- the Retro tonemapper, and a bloom that glows nothing (its threshold is above any color); the warm-up makes a presenter too, so an
+	-- effect that is there is used
 	const Grade = Lit:FindFirstChildOfClass("ColorGradingEffect") or Instance.new("ColorGradingEffect")
 	const Bloom = Lit:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
 

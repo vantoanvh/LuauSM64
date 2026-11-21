@@ -5,7 +5,7 @@
 	The level to give Roblox for a color level the N64 would show.
 
 	Paradigm
-		With the unlit lighting of the Presenter (no sun, a white ambient light, no exposure compensation and the gain of a color correction, see Presenter.New), the plain material and every part
+		With the unlit lighting of the Presenter (no sun, a white ambient light, no exposure compensation, the Retro tonemapper, see Presenter.New), the plain material and every part
 		white (Color3.new(1, 1, 1): the default gray of a part would take a third of the light), Roblox shows a color about as it is in the middle
 		of the range (a little brighter), but takes the vertex color and the texel through its own transfer curve at the ends: dark levels come
 		out darker and bright ones are held back (the shown level of a white one is 248, not 255). The levels below were measured in Studio on gray quads (a screenshot of 17 levels, read
