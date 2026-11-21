@@ -74,6 +74,8 @@ export type Backdrop = {
 	Part: Part,
 	Label: ImageLabel,
 	Cube: Sky,
+	-- The one black pixel every face of the sky shows when the area has no panorama (kept alive while it is shown)
+	Void: EditableImage,
 	Panoramas: { [number]: Panorama },
 	Active: Panorama?,
 	Flat: EditableImage,
@@ -83,14 +85,33 @@ export type Backdrop = {
 	Mode: string,
 }
 
+-- Every face of the sky shows the black pixel: nothing is behind the world
+const function ShowVoid(Cube: Sky, Void: EditableImage)
+	const Black = Content.fromObject(Void)
+
+	Cube.SkyboxFrontContent = Black
+	Cube.SkyboxBackContent = Black
+	Cube.SkyboxLeftContent = Black
+	Cube.SkyboxRightContent = Black
+	Cube.SkyboxUpContent = Black
+	Cube.SkyboxDownContent = Black
+end
+
 const function New(): Backdrop
 	const Part = Instance.new("Part")
 	const Gui = Instance.new("SurfaceGui")
 	const Label = Instance.new("ImageLabel")
 	const Cube = Instance.new("Sky")
+	const Void = AssetService:CreateEditableImage({ Size = Vector2.one })
+
+	Void:WritePixelsBuffer(Vector2.zero, Vector2.one, buffer.fromstring("\0\0\0\255"))
 
 	Cube.Name = "SM64Sky"
+	-- a sky of its own picture only: no sun, no moon, no stars (the place's own sky would show them)
 	Cube.CelestialBodiesShown = false
+	Cube.StarCount = 0
+	ShowVoid(Cube, Void)
+	Cube.Parent = Lighting
 
 	Part.Name = "Sky"
 	Part.Anchored = true
@@ -116,6 +137,7 @@ const function New(): Backdrop
 		Part = Part,
 		Label = Label,
 		Cube = Cube,
+		Void = Void,
 		Panoramas = {},
 		Active = nil,
 		Flat = AssetService:CreateEditableImage({ Size = Vector2.new(FlatWidth, FlatHeight) }),
@@ -337,7 +359,6 @@ const function Present(Self: Backdrop, Frame: Recorder.Frame)
 			Cube.SkyboxRightContent = Faces[4]
 			Cube.SkyboxUpContent = Faces[5]
 			Cube.SkyboxDownContent = Faces[6]
-			Cube.Parent = Lighting
 			Self.Active = Found
 		end
 
@@ -348,7 +369,7 @@ const function Present(Self: Backdrop, Frame: Recorder.Frame)
 	end
 
 	if Self.Active ~= nil then
-		Self.Cube.Parent = nil
+		ShowVoid(Self.Cube, Self.Void)
 		Self.Active = nil
 	end
 
