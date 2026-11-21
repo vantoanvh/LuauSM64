@@ -1,0 +1,160 @@
+--!strict
+--!optimize 2
+
+--[[
+	The N64 controller from the keyboard, a gamepad or the touch screen (roblox/src/TouchControls). Read gives the pad of the moment.
+
+	Controls
+		Stick: WASD or the left thumbstick. A: Space or gamepad A. B: E or X. Z: Q or the left trigger. Start: Return or Start.
+		C buttons: the arrow keys. R: R or the right bumper. A touch device shows the buttons and a floating stick on the screen.
+]]
+
+const UserInputService = game:GetService("UserInputService")
+
+const Area = require("../../port/src/game/area")
+const DialogIdsH = require("../../port/include/dialog_ids_h")
+const Driver = require("./Driver")
+const FileSelect = require("../../port/src/menu/file_select")
+const GdMain = require("../../port/src/goddard/gd_main")
+const IngameMenu = require("../../port/groups/ingame_menu_plus1")
+const LevelTableH = require("../../port/include/level_table_h")
+const TouchControls = require("./TouchControls")
+const TouchSprites = require("./TouchSprites")
+
+-- The touch pad of a device with a touch screen (nil on others), kept by its own buttons
+const Touch = TouchControls()
+
+const StickRange = 80
+const AButton = 0x8000
+const ThumbstickDeadzone = 0.2
+
+const KeyBits = {
+	[Enum.KeyCode.Space] = 0x8000,
+	[Enum.KeyCode.E] = 0x4000,
+	[Enum.KeyCode.Q] = 0x2000,
+	[Enum.KeyCode.Return] = 0x1000,
+	[Enum.KeyCode.R] = 0x0010,
+	[Enum.KeyCode.Up] = 0x0008,
+	[Enum.KeyCode.Down] = 0x0004,
+	[Enum.KeyCode.Left] = 0x0002,
+	[Enum.KeyCode.Right] = 0x0001,
+}
+
+const GamepadBits = {
+	[Enum.KeyCode.ButtonA] = 0x8000,
+	[Enum.KeyCode.ButtonX] = 0x4000,
+	[Enum.KeyCode.ButtonL2] = 0x2000,
+	[Enum.KeyCode.ButtonStart] = 0x1000,
+	[Enum.KeyCode.ButtonR1] = 0x0010,
+}
+
+-- What the game is doing, for the icons of the touch buttons: a dialog is open (the buttons go on), a menu is (the title, the file and act selects
+-- and the game over screen are the levels up to the third; the pause menu is the menu mode), or the game is played
+const function ModeOf(): TouchSprites.Mode
+	if IngameMenu.gDialogID ~= DialogIdsH.DIALOG_NONE then
+		return "Dialog"
+	elseif IngameMenu.gMenuMode ~= IngameMenu.MENU_MODE_NONE or Area.gCurrLevelNum <= LevelTableH.LEVEL_UNKNOWN_3 then
+		return "Menu"
+	end
+
+	return "Play"
+end
+
+-- Whether the screen is one of the menus that has a cursor (the title with Mario's head, the file select, the game over screen), which a
+-- finger can point at: the levels up to the third, with no pause menu on them
+const function Pointing(): boolean
+	return IngameMenu.gMenuMode == IngameMenu.MENU_MODE_NONE and Area.gCurrLevelNum <= LevelTableH.LEVEL_UNKNOWN_3
+end
+
+-- Moves the cursors of the menus to the finger, as if the stick had taken them there, and presses A for as long as it is down: the file select
+-- clicks what is under the cursor when A goes down, Goddard's hand takes hold of the head while A is held (the cursor of a menu is
+-- not on the screen when the other one is)
+const function Point(Touch: TouchControls.Touch): number
+	-- the file select's cursor is in pixels from the middle of the picture, y up
+	FileSelect.sCursorPos[1] = math.clamp(Touch.PointerX - 160, -132, 132)
+	FileSelect.sCursorPos[2] = math.clamp(120 - Touch.PointerY, -90, 90)
+	-- Goddard's hand is in pixels of the picture, y down
+	GdMain.gGdCtrl.csrX = Touch.PointerX
+	GdMain.gGdCtrl.csrY = Touch.PointerY
+
+	return AButton
+end
+
+-- The pad now: what is held
+const function ReadPad(): Driver.Pad
+	local Buttons = 0
+	local StickX = 0
+	local StickY = 0
+
+	for Key, Bit in KeyBits do
+		if UserInputService:IsKeyDown(Key) then
+			Buttons = bit32.bor(Buttons, Bit)
+		end
+	end
+
+	for Key, Bit in GamepadBits do
+		if UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Key) then
+			Buttons = bit32.bor(Buttons, Bit)
+		end
+	end
+
+	if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+		StickX += 1
+	end
+
+	if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+		StickX -= 1
+	end
+
+	if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+		StickY += 1
+	end
+
+	if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+		StickY -= 1
+	end
+
+	for _, State in UserInputService:GetGamepadState(Enum.UserInputType.Gamepad1) do
+		if State.KeyCode == Enum.KeyCode.Thumbstick1 then
+			if math.abs(State.Position.X) > ThumbstickDeadzone then
+				StickX = State.Position.X
+			end
+
+			if math.abs(State.Position.Y) > ThumbstickDeadzone then
+				StickY = State.Position.Y
+			end
+		end
+	end
+
+	if Touch ~= nil then
+		Touch.SetMode(ModeOf())
+		Buttons = bit32.bor(Buttons, Touch.Buttons)
+
+		if Touch.PointerDown and Pointing() then
+			Buttons = bit32.bor(Buttons, Point(Touch))
+		end
+
+		if Touch.StickX ~= 0 or Touch.StickY ~= 0 then
+			StickX = Touch.StickX
+			StickY = Touch.StickY
+		end
+	end
+
+	const Length = math.sqrt(StickX * StickX + StickY * StickY)
+
+	if Length > 1 then
+		StickX /= Length
+		StickY /= Length
+	end
+
+	return { Buttons = Buttons, StickX = math.round(StickX * StickRange), StickY = math.round(StickY * StickRange) }
+end
+
+-- Shows the touch controls (they are hidden while the game loads); a device without a touch screen has none
+const function Show()
+	if Touch ~= nil then
+		Touch.SetVisible(true)
+	end
+end
+
+return { Read = ReadPad, Show = Show }

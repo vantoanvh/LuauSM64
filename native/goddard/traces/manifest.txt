@@ -1,0 +1,8 @@
+# <trace name> <scene id>: 2 = regular head (title screen), 3 = dizzy head (game over). Read by run.sh, check.sh, coverage.sh.
+idle 2
+idle_long 2
+stick_circles 2
+grab_drag 2
+gameover 3
+camera_controls 2
+grab_sweep 2
