@@ -19,11 +19,18 @@ const FileSelect = require("../../port/src/menu/file_select")
 const GdMain = require("../../port/src/goddard/gd_main")
 const IngameMenu = require("../../port/groups/ingame_menu_plus1")
 const LevelTableH = require("../../port/include/level_table_h")
+const LevelScript = require("../../port/src/engine/level_script")
+const Rom = require("../../port/src/rom/rom")
 const TouchControls = require("./TouchControls")
 const TouchSprites = require("./TouchSprites")
 
 -- The touch pad of a device with a touch screen (nil on others), kept by its own buttons
 const Touch = TouchControls()
+
+-- The ROM starts of the level scripts of the title screen (with the game over screen and the level select) and of the menu (the file select and
+-- the act select): the game is in one of them while the level script that runs is
+const IntroScript = 0x269EA0
+const MenuScript = 0x2A6120
 
 const StickRange = 80
 const AButton = 0x8000
@@ -55,13 +62,25 @@ const GamepadBits = {
 	[Enum.KeyCode.ButtonR1] = 0x0010,
 }
 
--- What the game is doing, for the icons of the touch buttons: a dialog is open (the buttons go on), a menu is (the title, the file and act selects
--- and the game over screen are the levels up to the third; the pause menu is the menu mode), or the game is played
+-- What the game is doing, for the touch buttons (which of them do anything, and their icons): a dialog is open, the pause menu is (also the
+-- course complete and save screens: the menu mode), the title or game over screen runs, a file or an act select does (they are the two level
+-- scripts of the ROM that the game runs for them), or the game is played
 const function ModeOf(): TouchSprites.Mode
 	if IngameMenu.gDialogID ~= DialogIdsH.DIALOG_NONE then
 		return "Dialog"
-	elseif IngameMenu.gMenuMode ~= IngameMenu.MENU_MODE_NONE or Area.gCurrLevelNum <= LevelTableH.LEVEL_UNKNOWN_3 then
-		return "Menu"
+	elseif IngameMenu.gMenuMode ~= IngameMenu.MENU_MODE_NONE then
+		return "Pause"
+	-- before the first frame the level script has not started
+	elseif LevelScript.sCurrentCmd == 0 then
+		return "Play"
+	end
+
+	const Script = Rom.BlockOf(LevelScript.sCurrentCmd)
+
+	if Script == IntroScript then
+		return "Title"
+	elseif Script == MenuScript then
+		return "Select"
 	end
 
 	return "Play"

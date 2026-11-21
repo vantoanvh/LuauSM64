@@ -10,8 +10,9 @@
 		game frame: Buttons has the bits of the buttons held, StickX and StickY are the stick from -1 to 1 (zero when no finger is on it).
 		The screen is the controller, not a drawing of one:
 				a fixed stick with the N64's octagonal gate at the bottom left, the jump button (A) at the bottom right as in every Roblox
-				game, the attack button (B), the crouch button (Z) and the camera button (R) in an arc around it, the menu button (Start) at
-				the top right; everything is inside the safe area of the device (its notches and rounded corners);
+				game, the attack button (B) and the crouch button (Z) in an arc around it, the menu button (Start) at the top right with the
+				camera button (R) beside it; everything is inside the safe area of the device (its notches and rounded corners);
+				a button that does nothing in the scene the game is in (SetMode) is not shown;
 			the camera (the C buttons) is the right of the screen: a drag turns it (C left and C right), a pinch zooms it (C up and C down),
 			a twist of two fingers turns it too.
 		The default Roblox touch controls are turned off (GuiService.TouchControlsEnabled) so that they do not fight with these.
@@ -212,8 +213,8 @@ const function New(): Touch?
 	const Attack = MakeButton(Gui, "Attack", Sprites.Attack, ButtonB, Pad)
 	const Crouch = MakeButton(Gui, "Crouch", Sprites.Crouch, ButtonZ, Pad)
 	const Camera = MakeButton(Gui, "Camera", Sprites.Camera, ButtonR, Pad)
-	const Pause = MakeButton(Gui, "Pause", Sprites.Pause, ButtonStart, Pad)
-	const Faces = { Jump, Attack, Crouch, Camera, Pause }
+	const Start = MakeButton(Gui, "Start", Sprites.Start, ButtonStart, Pad)
+	const Faces = { Jump, Attack, Crouch, Camera, Start }
 	local Mode: TouchSprites.Mode = "Play"
 
 	const function Show()
@@ -257,14 +258,14 @@ const function New(): Touch?
 		-- the center of the jump button, from the right and the bottom
 		const RightA = Margin + PrimaryPixels / 2
 		const BottomA = Margin + PrimaryPixels / 2
-		-- the other buttons are on an arc around it, from the left (attack) to the top (camera), far enough for two of them not to touch
+		-- the attack and crouch buttons are on an arc around it, from the left, far enough for two buttons not to touch
 		const Radius = math.max(PrimaryPixels / 2 + ButtonPixels / 2 + Gap, (ButtonPixels + Gap) / (2 * math.sin(math.rad(ArcStep / 2))))
 
 		for _, Face in { Attack, Crouch, Camera } do
 			Face.Image.Size = UDim2.fromOffset(ButtonPixels, ButtonPixels)
 		end
 
-		for _, Face in { Jump, Pause } do
+		for _, Face in { Jump, Start } do
 			Face.Image.Size = UDim2.fromOffset(PrimaryPixels, PrimaryPixels)
 		end
 
@@ -278,8 +279,9 @@ const function New(): Touch?
 		Jump.Image.Position = UDim2.new(1, -RightA, 1, -BottomA)
 		OnArc(Attack, 0)
 		OnArc(Crouch, 1)
-		OnArc(Camera, 2)
-		Pause.Image.Position = UDim2.new(1, -RightA, 0, Margin + PrimaryPixels / 2)
+		-- the menu button is at the top right, the camera button to the left of it
+		Start.Image.Position = UDim2.new(1, -RightA, 0, Margin + PrimaryPixels / 2)
+		Camera.Image.Position = UDim2.new(1, -(RightA + PrimaryPixels / 2 + Gap + ButtonPixels / 2), 0, Margin + PrimaryPixels / 2)
 
 		-- the stick: at the left edge, as low as the buttons
 		Gate.Size = UDim2.fromOffset(GatePixels, GatePixels)

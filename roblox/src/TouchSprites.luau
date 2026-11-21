@@ -4,7 +4,7 @@
 --[[
 	The pixel art of the touch controls (roblox/src/TouchControls), in the style of Super Mario 64: round buttons in the N64 pad's colors
 	(A blue, B green, Z gray, Start red) with a thin black line, a lit crescent at the top left and a shaded one at the bottom right,
-	each with a thin white icon (a jump arrow, an impact for the punch, a ground pound, a camera, a check mark, a triangle, a back arrow, the
+	each with a thin white icon (a jump arrow, an impact for the punch, a ground pound, a camera, a check mark, a triangle, the
 	menu lines, the word START), and for the stick the N64's octagonal gate and the gray cap of its stick.
 
 	Paradigm
@@ -21,9 +21,9 @@ const PixelCanvas = require("./PixelCanvas")
 -- A button's pictures
 export type Pair = { Normal: Content, Pressed: Content }
 
--- What the game is doing, which says what a button does: playing, in a menu (the title, the file and the act selects, the pause menu) or reading
--- a dialog
-export type Mode = "Play" | "Menu" | "Dialog"
+-- What the game is doing, which says what a button does and which buttons do anything: playing, reading a dialog, on the title screen (or the
+-- game over screen), in a select (the files, the acts) or in the pause menu
+export type Mode = "Play" | "Dialog" | "Title" | "Select" | "Pause"
 
 -- A button's pictures by mode; a mode that has none hides the button
 export type Modes = { [string]: Pair }
@@ -33,7 +33,7 @@ export type Sprites = {
 	Attack: Modes,
 	Crouch: Modes,
 	Camera: Modes,
-	Pause: Modes,
+	Start: Modes,
 	Gate: Content,
 	Stick: Content,
 	-- The pictures, kept alive for as long as they are shown
@@ -128,23 +128,6 @@ const CheckIcon = {
 	"..##..##.....",
 	"...####......",
 	"....##.......",
-	".............",
-	".............",
-	".............",
-	".............",
-}
-
--- Back: an arrow to the left (13 x 13)
-const BackIcon = {
-	"....#........",
-	"...##........",
-	"..###........",
-	".#########...",
-	"##########...",
-	".#########...",
-	"..###........",
-	"...##........",
-	"....#........",
 	".............",
 	".............",
 	".............",
@@ -404,25 +387,28 @@ const function Build(): Sprites
 	const Pictures: { PixelCanvas.Picture } = {}
 	const GatePicture = Gate()
 	const StickPicture = Stick()
+	-- the pictures several modes share
+	const Check = Pair(Sizes.Primary, BluePalette, CheckIcon, 0, Pictures)
+	const Start = Pair(Sizes.Primary, RedPalette, StartIcon, 0, Pictures)
 
 	table.insert(Pictures, GatePicture)
 	table.insert(Pictures, StickPicture)
 
 	return {
-		-- the jump button is a jump arrow while playing, a check mark in the menus, and a triangle to go on in a dialog
+		-- the jump button (A) is a jump arrow while playing, a check mark to choose in a select or the pause menu, and a triangle to go on in a
+		-- dialog; on the title screen A does nothing
 		Jump = {
 			Play = Pair(Sizes.Primary, BluePalette, JumpIcon, 0, Pictures),
-			Menu = Pair(Sizes.Primary, BluePalette, CheckIcon, 0, Pictures),
+			Select = Check,
+			Pause = Check,
 			Dialog = Pair(Sizes.Primary, BluePalette, PlayIcon, 1, Pictures),
 		},
-		-- the punch while playing, back in a menu; a dialog has no use for it
-		Attack = { Play = Pair(Sizes.Button, GreenPalette, PunchIcon, 0, Pictures), Menu = Pair(Sizes.Button, GreenPalette, BackIcon, 0, Pictures) },
-		-- the ground pound is only for playing
+		-- the punch, the ground pound and the camera mode (R) are only for playing: in the menus B does what A does, and Z and R do nothing
+		Attack = { Play = Pair(Sizes.Button, GreenPalette, PunchIcon, 0, Pictures) },
 		Crouch = { Play = Pair(Sizes.Button, GrayPalette, PoundIcon, 0, Pictures) },
-		-- the camera mode (R) is only for playing
 		Camera = { Play = Pair(Sizes.Button, YellowPalette, CameraIcon, 0, Pictures) },
-		-- the menu while playing, START in the menus (the title, the file select, the pause menu)
-		Pause = { Play = Pair(Sizes.Primary, RedPalette, MenuIcon, 0, Pictures), Menu = Pair(Sizes.Primary, RedPalette, StartIcon, 0, Pictures) },
+		-- the menu while playing, START on the title screen and in the pause menu (a select starts with A, a dialog does not pause)
+		Start = { Play = Pair(Sizes.Primary, RedPalette, MenuIcon, 0, Pictures), Title = Start, Pause = Start },
 		Gate = GatePicture.Content,
 		Stick = StickPicture.Content,
 		Pictures = Pictures,
