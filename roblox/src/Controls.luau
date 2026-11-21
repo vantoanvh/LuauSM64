@@ -6,7 +6,8 @@
 
 	Controls
 		Stick: WASD or the left thumbstick. A: Space or gamepad A. B: E or X. Z: Q or the left trigger. Start: Return or Start.
-		C buttons: the arrow keys. R: R or the right bumper. A touch device shows the buttons and a floating stick on the screen.
+		C buttons: the arrow keys or the right thumbstick. R (the camera mode): R or the right bumper. A touch device shows the buttons and a
+		fixed stick on the screen.
 ]]
 
 const UserInputService = game:GetService("UserInputService")
@@ -27,6 +28,12 @@ const Touch = TouchControls()
 const StickRange = 80
 const AButton = 0x8000
 const ThumbstickDeadzone = 0.2
+-- How far the right thumbstick must be pushed for a C button
+const CButtonThreshold = 0.5
+const CRight = 0x0001
+const CLeft = 0x0002
+const CDown = 0x0004
+const CUp = 0x0008
 
 const KeyBits = {
 	[Enum.KeyCode.Space] = 0x8000,
@@ -122,6 +129,19 @@ const function ReadPad(): Driver.Pad
 
 			if math.abs(State.Position.Y) > ThumbstickDeadzone then
 				StickY = State.Position.Y
+			end
+		elseif State.KeyCode == Enum.KeyCode.Thumbstick2 then
+			-- the right thumbstick is the C buttons
+			if State.Position.X > CButtonThreshold then
+				Buttons = bit32.bor(Buttons, CRight)
+			elseif State.Position.X < -CButtonThreshold then
+				Buttons = bit32.bor(Buttons, CLeft)
+			end
+
+			if State.Position.Y > CButtonThreshold then
+				Buttons = bit32.bor(Buttons, CUp)
+			elseif State.Position.Y < -CButtonThreshold then
+				Buttons = bit32.bor(Buttons, CDown)
 			end
 		end
 	end

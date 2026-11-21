@@ -4,8 +4,8 @@
 --[[
 	The pixel art of the touch controls (roblox/src/TouchControls), in the style of Super Mario 64: round buttons in the N64 pad's colors
 	(A blue, B green, Z gray, Start red) with a thin black line, a lit crescent at the top left and a shaded one at the bottom right,
-	each with a thin white icon (a jump arrow, an impact for the punch, a ground pound, a check mark, a triangle, a back arrow, two bars),
-	and for the stick the N64's octagonal gate and the gray cap of its stick.
+	each with a thin white icon (a jump arrow, an impact for the punch, a ground pound, a camera, a check mark, a triangle, a back arrow, the
+	menu lines, the word START), and for the stick the N64's octagonal gate and the gray cap of its stick.
 
 	Paradigm
 		The art is small and coarse, like the game's own: a button is a few dozen pixels across and the screen shows each of them as a
@@ -32,6 +32,7 @@ export type Sprites = {
 	Jump: Modes,
 	Attack: Modes,
 	Crouch: Modes,
+	Camera: Modes,
 	Pause: Modes,
 	Gate: Content,
 	Stick: Content,
@@ -42,8 +43,9 @@ export type Sprites = {
 -- The colors of a button: the body, the lit rim and the shaded rim
 type Palette = { Body: Color3, Light: Color3, Dark: Color3 }
 
--- The sizes of the pictures, in art pixels: every button (all the same size), the gate of the stick and its cap
-const Sizes = { Button = 24, Gate = 44, Cap = 24 }
+-- The sizes of the pictures, in art pixels: the buttons (the jump and start buttons, which a thumb must find, are a little bigger), the gate of
+-- the stick and its cap
+const Sizes = { Button = 24, Primary = 27, Gate = 44, Cap = 24 }
 
 -- The parts of a button, in art pixels: the black line and the lit and shaded rims
 const LineWidth = 1
@@ -58,6 +60,8 @@ const BluePalette = { Body = Color3.fromRGB(44, 96, 224), Light = Color3.fromRGB
 const GreenPalette = { Body = Color3.fromRGB(44, 172, 76), Light = Color3.fromRGB(112, 224, 134), Dark = Color3.fromRGB(26, 116, 50) } :: Palette
 const GrayPalette = { Body = Color3.fromRGB(134, 134, 146), Light = Color3.fromRGB(198, 198, 210), Dark = Color3.fromRGB(86, 86, 98) } :: Palette
 const RedPalette = { Body = Color3.fromRGB(214, 44, 44), Light = Color3.fromRGB(250, 116, 116), Dark = Color3.fromRGB(144, 26, 26) } :: Palette
+-- the C buttons' yellow, for the camera
+const YellowPalette = { Body = Color3.fromRGB(222, 164, 24), Light = Color3.fromRGB(250, 214, 96), Dark = Color3.fromRGB(158, 108, 10) } :: Palette
 -- the cap of the stick: the N64's gray
 const StickPalette = { Body = Color3.fromRGB(150, 150, 160), Light = Color3.fromRGB(214, 214, 224), Dark = Color3.fromRGB(86, 86, 98) } :: Palette
 
@@ -164,22 +168,60 @@ const PlayIcon = {
 	".............",
 }
 
--- Pause: two bars (13 x 13)
-const PauseIcon = {
+-- The menu: three lines (13 wide)
+const MenuIcon = {
+	"..#########..",
+	"..#########..",
 	".............",
 	".............",
-	"...##...##...",
-	"...##...##...",
-	"...##...##...",
-	"...##...##...",
-	"...##...##...",
-	"...##...##...",
-	"...##...##...",
+	"..#########..",
+	"..#########..",
 	".............",
 	".............",
-	".............",
-	".............",
+	"..#########..",
+	"..#########..",
 }
+
+-- The camera, which the R button switches between Mario's and Lakitu's (13 wide)
+const CameraIcon = {
+	".....###.....",
+	"#############",
+	"#...........#",
+	"#....###....#",
+	"#...#...#...#",
+	"#...#...#...#",
+	"#....###....#",
+	"#...........#",
+	"#############",
+}
+
+-- The letters of the word START, 3 pixels wide and 5 high
+const Glyphs = {
+	S = { "###", "#..", "###", "..#", "###" },
+	T = { "###", ".#.", ".#.", ".#.", ".#." },
+	A = { ".#.", "#.#", "###", "#.#", "#.#" },
+	R = { "##.", "#.#", "##.", "#.#", "#.#" },
+} :: { [string]: { string } }
+
+-- The rows of a word, a pixel between its letters
+const function Word(Letters: string): { string }
+	const Rows: { string } = {}
+
+	for Row = 1, 5 do
+		const Parts: { string } = {}
+
+		for Index = 1, #Letters do
+			table.insert(Parts, Glyphs[string.sub(Letters, Index, Index)][Row])
+		end
+
+		table.insert(Rows, table.concat(Parts, "."))
+	end
+
+	return Rows
+end
+
+-- Start: the word, as on the N64's red button
+const StartIcon = Word("START")
 
 -- What an icon has at (X, Y) (zero based): "#" or "." for nothing
 const function IconAt(Icon: { string }, X: number, Y: number): string
@@ -369,16 +411,18 @@ const function Build(): Sprites
 	return {
 		-- the jump button is a jump arrow while playing, a check mark in the menus, and a triangle to go on in a dialog
 		Jump = {
-			Play = Pair(Sizes.Button, BluePalette, JumpIcon, 0, Pictures),
-			Menu = Pair(Sizes.Button, BluePalette, CheckIcon, 0, Pictures),
-			Dialog = Pair(Sizes.Button, BluePalette, PlayIcon, 1, Pictures),
+			Play = Pair(Sizes.Primary, BluePalette, JumpIcon, 0, Pictures),
+			Menu = Pair(Sizes.Primary, BluePalette, CheckIcon, 0, Pictures),
+			Dialog = Pair(Sizes.Primary, BluePalette, PlayIcon, 1, Pictures),
 		},
 		-- the punch while playing, back in a menu; a dialog has no use for it
 		Attack = { Play = Pair(Sizes.Button, GreenPalette, PunchIcon, 0, Pictures), Menu = Pair(Sizes.Button, GreenPalette, BackIcon, 0, Pictures) },
 		-- the ground pound is only for playing
 		Crouch = { Play = Pair(Sizes.Button, GrayPalette, PoundIcon, 0, Pictures) },
-		-- pause while playing, start (or resume) in a menu
-		Pause = { Play = Pair(Sizes.Button, RedPalette, PauseIcon, 0, Pictures), Menu = Pair(Sizes.Button, RedPalette, PlayIcon, 1, Pictures) },
+		-- the camera mode (R) is only for playing
+		Camera = { Play = Pair(Sizes.Button, YellowPalette, CameraIcon, 0, Pictures) },
+		-- the menu while playing, START in the menus (the title, the file select, the pause menu)
+		Pause = { Play = Pair(Sizes.Primary, RedPalette, MenuIcon, 0, Pictures), Menu = Pair(Sizes.Primary, RedPalette, StartIcon, 0, Pictures) },
 		Gate = GatePicture.Content,
 		Stick = StickPicture.Content,
 		Pictures = Pictures,

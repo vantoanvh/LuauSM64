@@ -9,8 +9,9 @@
 		Touch devices only (UserInputService.PreferredInput is Touch when the game starts). The pad it keeps is read by roblox/src/Controls every
 		game frame: Buttons has the bits of the buttons held, StickX and StickY are the stick from -1 to 1 (zero when no finger is on it).
 		The screen is the controller, not a drawing of one:
-			a fixed stick with the N64's octagonal gate at the bottom left, the jump button (A) at the bottom right as in every Roblox
-			game, the attack button (B) and the crouch button (Z) in an arc beside it, a pause button (Start) at the top;
+				a fixed stick with the N64's octagonal gate at the bottom left, the jump button (A) at the bottom right as in every Roblox
+				game, the attack button (B), the crouch button (Z) and the camera button (R) in an arc around it, the menu button (Start) at
+				the top right; everything is inside the safe area of the device (its notches and rounded corners);
 			the camera (the C buttons) is the right of the screen: a drag turns it (C left and C right), a pinch zooms it (C up and C down),
 			a twist of two fingers turns it too.
 		The default Roblox touch controls are turned off (GuiService.TouchControlsEnabled) so that they do not fight with these.
@@ -53,13 +54,14 @@ const ButtonA = 0x8000
 const ButtonB = 0x4000
 const ButtonZ = 0x2000
 const ButtonStart = 0x1000
+const ButtonR = 0x0010
 const CUp = 0x0008
 const CDown = 0x0004
 const CLeft = 0x0002
 const CRight = 0x0001
 
--- A button (all of them are the same size) is a share of the screen's height, within what a finger and the screen allow (in screen
--- pixels); every art pixel is a whole number of screen pixels, the closest to what makes a button that size
+-- A button is a share of the screen's height, within what a finger and the screen allow (in screen pixels); every art pixel is a whole number
+-- of screen pixels, the closest to what makes a button that size
 const ButtonShare = 0.11
 const MinimumButton = 40
 const MaximumButton = 72
@@ -69,8 +71,9 @@ const PictureHeight = 240
 
 -- The distance of the buttons to the edges of the screen, in art pixels
 const EdgeMargin = 5
--- The gap between the jump button and the attack button, in art pixels
+-- The gap between the buttons, in art pixels, and the angle between two of those on the arc around the jump button
 const ButtonGap = 2
+const ArcStep = 45
 
 -- The stick: the area that takes a finger (in sizes of the gate) and how far the cap travels (in sizes of the gate)
 const GrabScale = 1.6
@@ -185,10 +188,10 @@ const function New(): Touch?
 	Gui.DisplayOrder = 20
 	Gui.IgnoreGuiInset = true
 	Gui.ResetOnSpawn = false
-	-- the buttons are placed from the edges of the whole screen, as the default controls are
-	Gui.SafeAreaCompatibility = Enum.SafeAreaCompatibility.None
-	Gui.ClipToDeviceSafeArea = false
-	Gui.ScreenInsets = Enum.ScreenInsets.None
+		-- the buttons are placed from the edges of the safe area of the device, not of the whole screen
+		Gui.SafeAreaCompatibility = Enum.SafeAreaCompatibility.None
+		Gui.ClipToDeviceSafeArea = false
+		Gui.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
 
 	-- the stick is fixed: a finger that lands in the area around the gate takes it, and the cap follows the finger from the center of the gate
 	const Grab = Instance.new("Frame")
@@ -208,8 +211,9 @@ const function New(): Touch?
 	const Jump = MakeButton(Gui, "Jump", Sprites.Jump, ButtonA, Pad)
 	const Attack = MakeButton(Gui, "Attack", Sprites.Attack, ButtonB, Pad)
 	const Crouch = MakeButton(Gui, "Crouch", Sprites.Crouch, ButtonZ, Pad)
+	const Camera = MakeButton(Gui, "Camera", Sprites.Camera, ButtonR, Pad)
 	const Pause = MakeButton(Gui, "Pause", Sprites.Pause, ButtonStart, Pad)
-	const Faces = { Jump, Attack, Crouch, Pause }
+	const Faces = { Jump, Attack, Crouch, Camera, Pause }
 	local Mode: TouchSprites.Mode = "Play"
 
 	const function Show()
@@ -234,7 +238,7 @@ const function New(): Touch?
 	Pad.SetMode = SetMode
 	Pad.SetVisible = SetVisible
 
-	-- Places the buttons from the bottom right and the stick from the bottom left, each art pixel a whole number of screen pixels
+	-- Places the buttons from the bottom right and the stick from the bottom left of the safe area, each art pixel a whole number of screen pixels
 	const function Layout()
 		const Screen = Gui.AbsoluteSize
 
@@ -247,19 +251,35 @@ const function New(): Touch?
 		const Pixel = math.max(math.round(math.clamp(Screen.Y * ButtonShare, MinimumButton, MaximumButton) / Sizes.Button), 1)
 		const Margin = EdgeMargin * Pixel
 		const ButtonPixels = Sizes.Button * Pixel
+		const PrimaryPixels = Sizes.Primary * Pixel
 		const GatePixels = Sizes.Gate * Pixel
+		const Gap = ButtonGap * Pixel
 		-- the center of the jump button, from the right and the bottom
-		const RightA = Margin + ButtonPixels / 2
-		const BottomA = Margin + ButtonPixels / 2
+		const RightA = Margin + PrimaryPixels / 2
+		const BottomA = Margin + PrimaryPixels / 2
+		-- the other buttons are on an arc around it, from the left (attack) to the top (camera), far enough for two of them not to touch
+		const Radius = math.max(PrimaryPixels / 2 + ButtonPixels / 2 + Gap, (ButtonPixels + Gap) / (2 * math.sin(math.rad(ArcStep / 2))))
 
-		for _, Face in Faces do
+		for _, Face in { Attack, Crouch, Camera } do
 			Face.Image.Size = UDim2.fromOffset(ButtonPixels, ButtonPixels)
 		end
 
+		for _, Face in { Jump, Pause } do
+			Face.Image.Size = UDim2.fromOffset(PrimaryPixels, PrimaryPixels)
+		end
+
+		-- a button at an angle of the arc (0 is the left, a quarter turn is up)
+		const function OnArc(Face: Button, Turns: number)
+			const Angle = math.rad(180 - Turns * ArcStep)
+
+			Face.Image.Position = UDim2.new(1, -RightA + Radius * math.cos(Angle), 1, -BottomA - Radius * math.sin(Angle))
+		end
+
 		Jump.Image.Position = UDim2.new(1, -RightA, 1, -BottomA)
-		Attack.Image.Position = UDim2.new(1, -(RightA + ButtonPixels + ButtonGap * Pixel), 1, -BottomA)
-		Crouch.Image.Position = UDim2.new(1, -(RightA + ButtonPixels * 0.6), 1, -(BottomA + ButtonPixels * 1.05))
-		Pause.Image.Position = UDim2.new(1, -RightA, 0, BottomA)
+		OnArc(Attack, 0)
+		OnArc(Crouch, 1)
+		OnArc(Camera, 2)
+		Pause.Image.Position = UDim2.new(1, -RightA, 0, Margin + PrimaryPixels / 2)
 
 		-- the stick: at the left edge, as low as the buttons
 		Gate.Size = UDim2.fromOffset(GatePixels, GatePixels)
@@ -294,12 +314,12 @@ const function New(): Touch?
 		end
 	end)
 
-	-- Where a finger is on the picture of the game: the 4:3 picture is in the middle of the screen
+	-- Where a finger is on the picture of the game: the 4:3 picture is in the middle of the whole screen (not of the safe area of this gui)
 	const function Place(Input: InputObject)
-		const Screen = Gui.AbsoluteSize
+		const Screen = (workspace.CurrentCamera :: Camera).ViewportSize
 		const Width = math.min(Screen.X, Screen.Y * 4 / 3)
 		const Height = Width * 3 / 4
-		const Inside = Vector2.new(Input.Position.X, Input.Position.Y) - Gui.AbsolutePosition
+		const Inside = Vector2.new(Input.Position.X, Input.Position.Y)
 
 		Pad.PointerX = math.clamp((Inside.X - (Screen.X - Width) / 2) / Width * PictureWidth, 0, PictureWidth)
 		Pad.PointerY = math.clamp((Inside.Y - (Screen.Y - Height) / 2) / Height * PictureHeight, 0, PictureHeight)
