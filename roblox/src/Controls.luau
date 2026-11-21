@@ -19,7 +19,6 @@ const FileSelect = require("../../port/src/menu/file_select")
 const GdMain = require("../../port/src/goddard/gd_main")
 const IngameMenu = require("../../port/groups/ingame_menu_plus1")
 const LevelTableH = require("../../port/include/level_table_h")
-const LevelScript = require("../../port/src/engine/level_script")
 const Rom = require("../../port/src/rom/rom")
 const TouchControls = require("./TouchControls")
 const TouchSprites = require("./TouchSprites")
@@ -65,17 +64,17 @@ const GamepadBits = {
 -- What the game is doing, for the touch buttons (which of them do anything, and their icons): a dialog is open, the pause menu is (also the
 -- course complete and save screens: the menu mode), the title or game over screen runs, a file or an act select does (they are the two level
 -- scripts of the ROM that the game runs for them), or the game is played
-const function ModeOf(): TouchSprites.Mode
+const function ModeOf(Game: Driver.Game): TouchSprites.Mode
 	if IngameMenu.gDialogID ~= DialogIdsH.DIALOG_NONE then
 		return "Dialog"
 	elseif IngameMenu.gMenuMode ~= IngameMenu.MENU_MODE_NONE then
 		return "Pause"
 	-- before the first frame the level script has not started
-	elseif LevelScript.sCurrentCmd == 0 then
+	elseif Game.LevelScript.sCurrentCmd == 0 then
 		return "Play"
 	end
 
-	const Script = Rom.BlockOf(LevelScript.sCurrentCmd)
+	const Script = Rom.BlockOf(Game.LevelScript.sCurrentCmd)
 
 	if Script == IntroScript then
 		return "Title"
@@ -106,8 +105,8 @@ const function Point(Touch: TouchControls.Touch): number
 	return AButton
 end
 
--- The pad now: what is held
-const function ReadPad(): Driver.Pad
+-- The pad now: what is held (Game is the game that runs: the scene it is in sets the touch buttons)
+const function ReadPad(Game: Driver.Game): Driver.Pad
 	local Buttons = 0
 	local StickX = 0
 	local StickY = 0
@@ -166,7 +165,7 @@ const function ReadPad(): Driver.Pad
 	end
 
 	if Touch ~= nil then
-		Touch.SetMode(ModeOf())
+		Touch.SetMode(ModeOf(Game))
 		Buttons = bit32.bor(Buttons, Touch.Buttons)
 
 		if Touch.PointerDown and Pointing() then

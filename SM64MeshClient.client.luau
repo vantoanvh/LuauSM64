@@ -82,7 +82,7 @@ const function Advance()
 
 		Recorder.Begin()
 		AudioRecorder.Begin()
-		Driver.Step(Game, Controls.Read())
+		Driver.Step(Game, Controls.Read(Game))
 		SaveSlots.Send(Eeprom, Commit)
 		StepMs = (os.clock() - Started) * 1000
 		Recorded = Recorder.End()
