@@ -1,12 +1,6 @@
-// Analysis of rendered PCM: silence trimming, loop search, spectrum.
-import fs from "node:fs";
+// Analysis of rendered PCM: silence trimming and the search of loops.
 
-import { SAMPLE_RATE } from "./paths.mjs";
-
-export function readPcm(file) {
-    const bytes = fs.readFileSync(file);
-    return new Int16Array(bytes.buffer, bytes.byteOffset, bytes.length >> 1).slice();
-}
+export const SAMPLE_RATE = 32000;
 
 // Interleaved stereo -> mono (average).
 export function toMono(stereo) {
@@ -15,14 +9,6 @@ export function toMono(stereo) {
         mono[i] = (stereo[2 * i] + stereo[2 * i + 1]) >> 1;
     }
     return mono;
-}
-
-export function peak(samples) {
-    let max = 0;
-    for (let i = 0; i < samples.length; i++) {
-        max = Math.max(max, Math.abs(samples[i]));
-    }
-    return max;
 }
 
 export function rms(samples) {
@@ -58,10 +44,10 @@ export function audibleRange(samples, channels, threshold) {
     return [first, last];
 }
 
-// ---- spectrum ----------------------------------------------------------------------------
+// ---- FFT ----------------------------------------------------------------------------------
 
 // In-place radix-2 complex FFT.
-export function fft(re, im, inverse = false) {
+function fft(re, im, inverse = false) {
     const n = re.length;
     for (let i = 1, j = 0; i < n; i++) {
         let bit = n >> 1;
@@ -102,34 +88,6 @@ export function fft(re, im, inverse = false) {
             im[i] /= n;
         }
     }
-}
-
-// Frequency (Hz) of the strongest spectral peak of mono[start, start + size), size a power of two.
-export function dominantFrequency(mono, size = 4096) {
-    // Analyze the loudest window.
-    let start = 0;
-    let loudest = -1;
-    for (let at = 0; at + size <= mono.length; at += size / 2) {
-        const energy = rms(mono.subarray(at, at + size));
-        if (energy > loudest) {
-            loudest = energy;
-            start = at;
-        }
-    }
-    const re = new Float64Array(size);
-    const im = new Float64Array(size);
-    for (let i = 0; i < size; i++) {
-        const window = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / size);
-        re[i] = (mono[start + i] ?? 0) * window;
-    }
-    fft(re, im);
-    let best = 1;
-    for (let k = 2; k < size / 2; k++) {
-        if (re[k] ** 2 + im[k] ** 2 > re[best] ** 2 + im[best] ** 2) {
-            best = k;
-        }
-    }
-    return (best * SAMPLE_RATE) / size;
 }
 
 // ---- loops -------------------------------------------------------------------------------
@@ -242,16 +200,3 @@ export function bakeLoopCrossfade(samples, channels, start, end, fade) {
     }
     return out;
 }
-
-// Time (ms) after which no 10 ms window of mono is louder than `fraction` of the peak rms window.
-export function decayMs(mono, fraction) {
-    const window = SAMPLE_RATE / 100;
-    const levels = [];
-    for (let at = 0; at + window <= mono.length; at += window) {
-        levels.push(rms(mono.subarray(at, at + window)));
-    }
-    const limit = Math.max(...levels) * fraction;
-    const last = levels.map((level) => level > limit).lastIndexOf(true);
-    return (last + 1) * 10;
-}
-

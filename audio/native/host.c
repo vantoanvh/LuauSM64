@@ -1,16 +1,14 @@
-// Offline host of the game's audio engine: replaces the game and libultra parts the engine talks to
-// (DMA, audio interface, game state) and drives it frame by frame the way thread4_sound and the
-// game loop do, writing the PCM the audio interface would play.
+// Offline host of the game's audio engine, built to WebAssembly (audio/build.mjs): replaces the game and
+// libultra parts the engine talks to (DMA, audio interface, game state) and drives it frame by frame the
+// way thread4_sound and the game loop do, collecting the PCM the audio interface would play.
 //
-//   audio_render <dataDir> sfx <soundBits> <hold 0|1> <maxSeconds> <outPcm>
-//   audio_render <dataDir> music <player> <seqArgs> <preset> <maxSeconds> <outPcm>
-//
-// <dataDir> holds sound_data.ctl, sound_data.tbl, sequences.bin, bank_sets (64-bit little endian
-// layout, see lib/build.mjs). <outPcm> receives raw interleaved stereo s16 at 32 kHz. One JSON line
-// describing the render goes to stdout.
+// The caller (rom-tool/sound/engine.js) fills the four data buffers with the sound data of the ROM (32-bit
+// little endian layout, rom-tool/sound/rom-data.js), calls audio_start, then audio_render_sfx or
+// audio_render_music once; it reads the interleaved stereo s16 PCM at 32 kHz from audio_pcm and the
+// description of the render from audio_info. A render needs a fresh instance: the engine's state is not
+// reset.
 #include <math.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -34,7 +32,7 @@ s16 gCurrAreaIndex = 1;
 s16 gMarioCurrentRoom;
 struct MarioState gMarioStates[1];
 
-// Audio data, filled from <dataDir> (sizes exceed the real files).
+// Audio data, filled by the caller (sizes exceed the real data).
 u8 gSoundDataADSR[0x40000];
 u8 gSoundDataRaw[0x300000];
 u8 gMusicData[0x40000];
@@ -305,10 +303,6 @@ static void append_pcm(const s16 *samples, int frames) {
     if (sPcmFrames + frames > sPcmCapacity) {
         sPcmCapacity = (sPcmFrames + frames) * 2;
         sPcm = realloc(sPcm, sPcmCapacity * 2 * sizeof(int16_t));
-        if (sPcm == NULL) {
-            fprintf(stderr, "out of memory\n");
-            exit(1);
-        }
     }
     memcpy(sPcm + sPcmFrames * 2, samples, (size_t) frames * 2 * sizeof(int16_t));
     sPcmFrames += frames;
@@ -361,47 +355,15 @@ static int run_game_frame(int *peak) {
     return 2;
 }
 
-static void load_file(const char *dir, const char *name, u8 *dest, size_t capacity) {
-    char path[1024];
-    FILE *f;
-    size_t n;
-    snprintf(path, sizeof(path), "%s/%s", dir, name);
-    f = fopen(path, "rb");
-    if (f == NULL) {
-        fprintf(stderr, "cannot open %s\n", path);
-        exit(1);
-    }
-    n = fread(dest, 1, capacity, f);
-    if (n == 0 || n == capacity) {
-        fprintf(stderr, "bad size of %s\n", path);
-        exit(1);
-    }
-    fclose(f);
-}
-
-static void init_engine(const char *dir) {
-    load_file(dir, "sound_data.ctl", gSoundDataADSR, sizeof(gSoundDataADSR));
-    load_file(dir, "sound_data.tbl", gSoundDataRaw, sizeof(gSoundDataRaw));
-    load_file(dir, "sequences.bin", gMusicData, sizeof(gMusicData));
-    load_file(dir, "bank_sets", gBankSetsData, sizeof(gBankSetsData));
-
-    // thread4_sound, then game_init.
-    audio_init();
-    sound_init();
-}
-
-static void write_pcm(const char *path) {
-    FILE *f = fopen(path, "wb");
-    if (f == NULL) {
-        fprintf(stderr, "cannot write %s\n", path);
-        exit(1);
-    }
-    fwrite(sPcm, sizeof(int16_t) * 2, (size_t) sPcmFrames, f);
-    fclose(f);
-}
-
 #define SILENCE_PEAK 4
 #define SILENT_FRAMES_TO_STOP 90 // 1.5 s
+
+// What a render reports, read by the caller through audio_info: how it ended and the loop of a sequence.
+enum RenderEnd { END_CAP, END_SILENCE, END_NEVER_AUDIBLE, END_LOOP, END_ENDED };
+
+static double sInfo[8];
+
+enum InfoField { INFO_END, INFO_FRAMES, INFO_LOOP_FOUND, INFO_LOOP_START, INFO_LOOP_END, INFO_LOOP_END2, INFO_PERIOD_TICKS, INFO_TICKS };
 
 // Plays a sound effect on its own. A continuous sound (hold) is requested every game frame, as the
 // game does, for as long as the engine reports it playing; it is not requested again once it has
@@ -411,7 +373,7 @@ static void render_sfx(u32 soundBits, int hold, double maxSeconds) {
     int silent = 0;
     int sawSound = 0;
     int frame = 0;
-    const char *end = "cap";
+    int end = END_CAP;
 
     // Loading a level: sound_reset starts the sound player sequence. Let it run before the request.
     sound_reset_idle(0);
@@ -436,11 +398,12 @@ static void render_sfx(u32 soundBits, int hold, double maxSeconds) {
             silent += 2;
         }
         if (silent >= SILENT_FRAMES_TO_STOP) {
-            end = sawSound ? "silence" : "never-audible";
+            end = sawSound ? END_SILENCE : END_NEVER_AUDIBLE;
             break;
         }
     }
-    printf("{\"end\":\"%s\",\"frames\":%lld}\n", end, (long long) sPcmFrames);
+    sInfo[INFO_END] = end;
+    sInfo[INFO_FRAMES] = (double) sPcmFrames;
 }
 
 // Plays a sequence on its own until it has looped twice, ended and gone silent, or the cap.
@@ -448,7 +411,7 @@ static void render_music(int player, u16 seqArgs, int preset, double maxSeconds)
     int maxFrames = (int) (maxSeconds * 60);
     int silent = 0;
     int frame;
-    const char *end = "cap";
+    int end = END_CAP;
 
     sLoop.firstPos = malloc(MAX_TICKS * sizeof(int64_t));
     sLoop.hashes = malloc(MAX_TICKS * sizeof(uint64_t));
@@ -464,7 +427,7 @@ static void render_music(int player, u16 seqArgs, int preset, double maxSeconds)
         int peak;
         run_game_frame(&peak);
         if (sLoop.loopFound == 2) {
-            end = "loop";
+            end = END_LOOP;
             break;
         }
         if (peak > SILENCE_PEAK) {
@@ -473,31 +436,55 @@ static void render_music(int player, u16 seqArgs, int preset, double maxSeconds)
             silent += 2;
         }
         if (!gSequencePlayers[player].enabled && silent >= SILENT_FRAMES_TO_STOP) {
-            end = "ended";
+            end = END_ENDED;
             break;
         }
     }
-    printf("{\"end\":\"%s\",\"frames\":%lld,\"loopFound\":%d,\"loopStart\":%lld,\"loopEnd\":%lld,"
-           "\"loopEnd2\":%lld,\"periodTicks\":%u,\"ticks\":%u}\n",
-           end, (long long) sPcmFrames, sLoop.loopFound, (long long) sLoop.loopStartPos,
-           (long long) sLoop.loopEndPos, (long long) sLoop.loopEnd2Pos, sLoop.periodTicks,
-           sLoop.tickCount);
+    sInfo[INFO_END] = end;
+    sInfo[INFO_FRAMES] = (double) sPcmFrames;
+    sInfo[INFO_LOOP_FOUND] = sLoop.loopFound;
+    sInfo[INFO_LOOP_START] = (double) sLoop.loopStartPos;
+    sInfo[INFO_LOOP_END] = (double) sLoop.loopEndPos;
+    sInfo[INFO_LOOP_END2] = (double) sLoop.loopEnd2Pos;
+    sInfo[INFO_PERIOD_TICKS] = sLoop.periodTicks;
+    sInfo[INFO_TICKS] = sLoop.tickCount;
 }
 
-int main(int argc, char **argv) {
+// ---- interface to the caller ----------------------------------------------------------------
+
+// The buffers of the sound data: 0 the sound banks (ctl), 1 their samples (tbl), 2 the sequences, 3 the bank sets
+u8 *audio_buffer(int which) {
+    switch (which) {
+        case 0: return gSoundDataADSR;
+        case 1: return gSoundDataRaw;
+        case 2: return gMusicData;
+        default: return gBankSetsData;
+    }
+}
+
+// Starts the engine on the data in the buffers: thread4_sound, then game_init.
+void audio_start(void) {
     sLoop.watchedPlayer = -1;
-    if (argc >= 7 && strcmp(argv[2], "sfx") == 0) {
-        init_engine(argv[1]);
-        render_sfx((u32) strtoul(argv[3], NULL, 16), atoi(argv[4]), atof(argv[5]));
-        write_pcm(argv[6]);
-        return 0;
-    }
-    if (argc >= 8 && strcmp(argv[2], "music") == 0) {
-        init_engine(argv[1]);
-        render_music(atoi(argv[3]), (u16) strtoul(argv[4], NULL, 16), atoi(argv[5]), atof(argv[6]));
-        write_pcm(argv[7]);
-        return 0;
-    }
-    fprintf(stderr, "usage: see host.c\n");
-    return 2;
+    audio_init();
+    sound_init();
+}
+
+// Plays the sound effect soundBits on its own (see render_sfx)
+void audio_render_sfx(u32 soundBits, int hold, double maxSeconds) {
+    render_sfx(soundBits, hold, maxSeconds);
+}
+
+// Plays a sequence on its own (see render_music)
+void audio_render_music(int player, u16 seqArgs, int preset, double maxSeconds) {
+    render_music(player, seqArgs, preset, maxSeconds);
+}
+
+// What the render made: interleaved stereo s16 frames (their number is INFO_FRAMES of audio_info)
+int16_t *audio_pcm(void) {
+    return sPcm;
+}
+
+// The description of the render, as doubles by InfoField (host.c enum, mirrored in rom-tool/sound/engine.js)
+double *audio_info(void) {
+    return sInfo;
 }

@@ -3,7 +3,7 @@
 
 --[[
 	Imports the local audio bundle into ReplicatedStorage.SM64Audio using temporary asset IDs.
-	Run in the Studio command bar for each session and select all files inside audio/out/atlases.
+	Run in the Studio command bar for each session and select all the files of SM64Sound.zip (unzipped; the Sounds button of the page of rom-tool/ makes it).
 ]]
 
 const HttpService = game:GetService("HttpService")
@@ -34,7 +34,7 @@ for _, Item in Files do
 	end
 end
 
-assert(ManifestJson ~= nil, "select sfx-atlas.json from audio/out/atlases")
+assert(ManifestJson ~= nil, "select sfx-atlas.json from the unzipped SM64Sound.zip")
 
 const Manifest = HttpService:JSONDecode(ManifestJson) :: Manifest
 const Imported: { [string]: boolean } = {}
@@ -46,7 +46,7 @@ for _, Group in { Manifest.sfx, Manifest.music } do
 		if not Imported[Filename] then
 			const File = AudioFiles[Filename]
 
-			assert(File ~= nil, `select {Filename} ({Key}) from audio/out/atlases`)
+			assert(File ~= nil, `select {Filename} ({Key}) from the unzipped SM64Sound.zip`)
 
 			Imported[Filename] = true
 			table.insert(Lines, `\t[{string.format("%q", Filename)}] = {string.format("%q", File:GetTemporaryId())},`)

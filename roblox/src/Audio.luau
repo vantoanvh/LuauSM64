@@ -115,7 +115,7 @@ end
 const function MakeTemplate(Filename: string, Ids: { [string]: string }, Templates: { Sound }): Sound
 	const Id = Ids[Filename]
 
-	assert(Id ~= nil, `{Filename} was not imported: run roblox/tools/ImportAudio.luau and select all files in audio/out/atlases`)
+	assert(Id ~= nil, `{Filename} was not imported: run roblox/tools/ImportAudio.luau and select all files of SM64Sound.zip (unzipped)`)
 
 	const Template = Instance.new("Sound")
 
@@ -714,7 +714,7 @@ const function New(Report: (number, number, string) -> ()): Audio?
 	const Module = ReplicatedStorage:FindFirstChild("SM64Audio")
 
 	if Module == nil or not Module:IsA("ModuleScript") then
-		warn("SM64 has no sound: render the sounds from your ROM (audio/README.md) and run roblox/tools/ImportAudio.luau to hear them")
+		warn("SM64 has no sound: make the sound files from your ROM on the page of rom-tool/ (audio/README.md) and run roblox/tools/ImportAudio.luau to hear them")
 
 		return nil
 	end

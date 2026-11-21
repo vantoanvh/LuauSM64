@@ -25,21 +25,20 @@ trademark and copyright of Nintendo.
 
 You need Roblox Studio and [Node.js](https://nodejs.org) 18 or newer (only to copy the files).
 
-1. **Put your ROM in the place.** Open `rom-tool/index.html` in a browser, choose your ROM, keep **Buffer** on, press Export, and import the
-   `SM64Rom.rbxmx` into your place (right-click `ReplicatedStorage`, Insert from File). The module `SM64Rom` returns the ROM as a buffer (the tool
-   accepts only the original US ROM and leaves out its sound data, which the game does not read; see `rom-tool/README.md`).
+1. **Put your ROM in the place.** Open https://vantoanvh.github.io/LuauSM64/, choose your ROM, press **ROM script**, and import the
+   `SM64Rom.rbxmx` into your place (right-click `ReplicatedStorage`, Insert from File). The module `SM64Rom` returns the ROM as a buffer (the page
+   accepts only the original US ROM, runs on your computer and leaves out the sound data, which the game does not read; see `rom-tool/README.md`).
 2. **Copy the code into the sync folder.** Run `node tools/sync_studio.mjs` in this folder. It fills `SM64/` (the module tree) and `SM64Server/`
    (the save-slot server script).
 3. **Sync the folders with Studio.** In the Explorer, create a Folder named `SM64` under `ReplicatedStorage` and link it to the `SM64/` folder with
    Studio's built-in folder sync (the arrows icon beside it). Do the same for `SM64Server/` with `ServerScriptService`. Run the script again
    whenever the code changes: Studio picks the changed files up.
 4. **Sound (optional).** Without it the game runs silently and prints one warning. Roblox cannot synthesize audio, so the sounds are rendered once
-   from your ROM: see `audio/README.md` (needs the decompilation checked out in `reference/`, Python 3, gcc and ffmpeg), then run
-   `roblox/tools/ImportAudio.luau` in the command bar and select every file of `audio/out`. Temporary asset ids last for the Studio session, so
-   repeat the import each session.
+   from your ROM: press **Sounds** on the same page (about 20 seconds), unzip `SM64Sound.zip`, run `roblox/tools/ImportAudio.luau` in the command
+   bar and select every file. Temporary asset ids last for the Studio session, so repeat the import each session (see `audio/README.md`).
 5. **Press Play.** The first start builds the meshes of the menus and the courses behind a black screen (about two minutes). Then the game starts at the logo.
 
-Controls are the keyboard, a gamepad or, on a touch device, on-screen buttons and a floating stick (`roblox/src/Controls.luau`, `TouchControls.luau`). The touch layout is new and untested on real phones; the game may also be too heavy for one.
+Controls are the keyboard, a gamepad or, on a touch device, on-screen buttons and a fixed stick (`roblox/src/Controls.luau`, `TouchControls.luau`). The touch layout is new and untested on real phones; the game may also be too heavy for one.
 
 ## Credits
 
