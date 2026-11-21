@@ -25,7 +25,7 @@ trademark and copyright of Nintendo.
 
 You need Roblox Studio.
 
-1. **Open the place.** Download `SM64.rbxl` from this repository and open it in Studio. It holds the game: the code of this repository as
+1. **Open the place.** Download `SM64.rbxl` from the [latest release](../../releases/latest) and open it in Studio. It holds the game: the code of this repository as
    scripts (the game sets its own lighting when it runs).
 2. **Put your ROM in the place.** Open https://vantoanvh.github.io/LuauSM64/, choose your ROM, press **ROM script**, and import the
    `SM64Rom.rbxmx` into the place (right-click `ReplicatedStorage`, Insert from File). The module `SM64Rom` returns the ROM as a buffer (the page
