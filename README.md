@@ -14,6 +14,7 @@ trademark and copyright of Nintendo.
 
 You need Roblox Studio.
 
+> NOTE: In published places, please make sure to enable `Allow Image / Mesh APIs`!
 1. **Open the place.** Download [`SM64.rbxl`](https://github.com/vantoanvh/LuauSM64/releases/latest) and open it in Roblox Studio.
 2. **Import your ROM.** Go to https://vantoanvh.github.io/LuauSM64/, select your US ROM, and click **ROM script**. Right-click `ReplicatedStorage` in Studio and select **Insert from File** to import `SM64Rom.rbxmx`.
 3. **Import sounds (optional).** Click **Sounds** on the same page, extract `SM64Sound.zip`, then run `roblox/tools/ImportAudio.luau` in Studio's command bar. Select all extracted files, including `.json`. You'll need to repeat this each Studio session.
