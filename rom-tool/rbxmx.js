@@ -33,7 +33,7 @@ function base64(bytes) {
 // The pieces of a Lua string with the text in it, split in lines or not
 function literal(text, oneLine) {
   const encoder = new TextEncoder();
-  const lineBreak = encoder.encode("\z\n");
+  const lineBreak = encoder.encode("\\z\n");
   const pieces = [encoder.encode('"')];
   const step = oneLine ? text.length : CHARS_PER_LINE;
 
