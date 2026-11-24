@@ -333,12 +333,12 @@ const function TextureOpacity(Batch: Scene.Batch): number
 	return if Batch.Translucent and Batch.Texture ~= nil then AlphaOf(Batch.Texture).Maximum / 255 else 1
 end
 
--- The pixels of a decoded texture with every texel repeated Factor times in both directions: Roblox filters a texture bilinearly, and a
--- larger image keeps the texels crisp as the N64's point sampling does
-const function Enlarge(Decoded: Texture.Texture, Factor: number): buffer
+-- The pixels of a decoded texture through the color curve: Roblox filters a texture bilinearly, as the N64 does (its 3-point filter), so the
+-- texels are not enlarged
+const function Pixels(Decoded: Texture.Texture): buffer
 	const Width = Decoded.Width
 	const Height = Decoded.Height
-	const Larger = buffer.create(Width * Factor * Height * Factor * 4)
+	const Result = buffer.create(Width * Height * 4)
 	-- The most opaque texel becomes opaque. TextureOpacity supplies the original factor.
 	const AlphaScale = 255 / math.max(AlphaOf(Decoded).Maximum, 1)
 
@@ -351,27 +351,18 @@ const function Enlarge(Decoded: Texture.Texture, Factor: number): buffer
 				+ bit32.lshift(Level(buffer.readu8(Decoded.Pixels, Offset + 2)), 16)
 				+ bit32.lshift(math.min(math.round(buffer.readu8(Decoded.Pixels, Offset + 3) * AlphaScale), 255), 24)
 
-			for RepeatY = 0, Factor - 1 do
-				const Row = ((Y * Factor + RepeatY) * Width * Factor + X * Factor) * 4
-
-				for RepeatX = 0, Factor - 1 do
-					buffer.writeu32(Larger, Row + RepeatX * 4, Texel)
-				end
-			end
+			buffer.writeu32(Result, Offset, Texel)
 		end
 	end
 
-	return Larger
+	return Result
 end
 
--- The editable image of a decoded texture, enlarged and through the color curve
-const function MakeImage(Decoded: Texture.Texture, Smooth: boolean): EditableImage
-	-- Roblox filters and shrinks a small texture badly: repeat each texel twice, within the texture size cap. A
-	-- smooth texture (the circle of a shadow, which the RDP filters) is left as it is, for Roblox to filter
-	const Factor = if Smooth then 1 else math.clamp(512 // math.max(Decoded.Width, Decoded.Height), 1, 2)
-	const Image = AssetService:CreateEditableImage({ Size = Vector2.new(Decoded.Width * Factor, Decoded.Height * Factor) })
+-- The editable image of a decoded texture, through the color curve
+const function MakeImage(Decoded: Texture.Texture): EditableImage
+	const Image = AssetService:CreateEditableImage({ Size = Vector2.new(Decoded.Width, Decoded.Height) })
 
-	Image:WritePixelsBuffer(Vector2.zero, Vector2.new(Decoded.Width * Factor, Decoded.Height * Factor), Enlarge(Decoded, Factor))
+	Image:WritePixelsBuffer(Vector2.zero, Vector2.new(Decoded.Width, Decoded.Height), Pixels(Decoded))
 
 	return Image
 end
@@ -380,7 +371,7 @@ end
 -- an opaque draw of the RDP ignores it (Mario's face and the plate of a sign have texels of alpha 0 that it shows as they are). The
 -- texture of an opaque draw is baked and set as the TextureContent, which ignores alpha; the alpha of a cutout (trees, fences) needs a live
 -- EditableImage under a SurfaceAppearance with the Transparency alpha mode, the only way a MeshPart takes the alpha of a texture.
-const function Texturize(Self: Presenter, Part: MeshPart, Decoded: Texture.Texture, Alpha: boolean, Smooth: boolean)
+const function Texturize(Self: Presenter, Part: MeshPart, Decoded: Texture.Texture, Alpha: boolean)
 	const Preloading = Self.Preloading
 
 	if Alpha and AlphaOf(Decoded).HasAlpha then
@@ -391,7 +382,7 @@ const function Texturize(Self: Presenter, Part: MeshPart, Decoded: Texture.Textu
 				Preloading[coroutine.running()] = `Preparing {Decoded.Width} × {Decoded.Height} texture with transparency`
 			end
 
-			Appearance = AssetService:CreateSurfaceAppearanceAsync({ ColorMap = Content.fromObject(MakeImage(Decoded, Smooth)) })
+			Appearance = AssetService:CreateSurfaceAppearanceAsync({ ColorMap = Content.fromObject(MakeImage(Decoded)) })
 			Appearance.AlphaMode = Enum.AlphaMode.Transparency
 			Self.Appearances[Decoded] = Appearance
 		end
@@ -408,7 +399,7 @@ const function Texturize(Self: Presenter, Part: MeshPart, Decoded: Texture.Textu
 			Preloading[coroutine.running()] = `Preparing {Decoded.Width} × {Decoded.Height} texture`
 		end
 
-		const Image = MakeImage(Decoded, Smooth)
+		const Image = MakeImage(Decoded)
 
 		Baked = Bake(Image)
 		Image:Destroy()
@@ -722,7 +713,7 @@ const function BuildPiece(Self: Presenter, Batch: Scene.Batch, Lit: boolean, Lif
 	Prepare(Part)
 
 	if Batch.Texture ~= nil then
-		Texturize(Self, Part, Batch.Texture, Batch.Cutout or Batch.Translucent, false)
+		Texturize(Self, Part, Batch.Texture, Batch.Cutout or Batch.Translucent)
 	end
 
 	Part.Transparency = Transparency
@@ -1184,7 +1175,7 @@ const function MakeInstance(Self: Presenter, Entry: Entry): Group?
 			Part.Transparency = Piece.Transparency
 
 			if Piece.Decoded ~= nil then
-				Texturize(Self, Part, Piece.Decoded, Piece.Alpha, false)
+				Texturize(Self, Part, Piece.Decoded, Piece.Alpha)
 			end
 
 			Group.Lit[#Group.Parts + 1] = Lit
@@ -1358,7 +1349,7 @@ const function BuildDynamic(Self: Presenter, Dyn: Dynamic, Batches: { Scene.Batc
 		Prepare(Part)
 
 		if Batch.Texture ~= nil then
-			Texturize(Self, Part, Batch.Texture, Batch.Cutout or Batch.Translucent, Dyn.Shadow)
+			Texturize(Self, Part, Batch.Texture, Batch.Cutout or Batch.Translucent)
 		end
 
 		Part.Transparency = 1 - MeanAlpha * Opacity
