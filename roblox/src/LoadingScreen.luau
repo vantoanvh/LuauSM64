@@ -50,7 +50,8 @@ const BarY = 38
 const BarHeight = 9
 const StatusY = 52
 const AssetY = 64
-const ScreenHeight = 72
+const CreditY = 80
+const ScreenHeight = 88
 
 const StarShape = {
 	"......###......",
@@ -216,6 +217,11 @@ const function Build(Self: Loading, Step: number)
 	Self.Status.Text = Self.StatusText
 	Self.Asset = MakeText(Self.Root, Step, AssetY, 8, 5, Gray)
 	Self.Asset.Text = Self.AssetText
+
+	const Credit = MakeText(Self.Root, Step, CreditY, 8, 6, Yellow)
+
+	Credit.TextXAlignment = Enum.TextXAlignment.Center
+	Credit.Text = "PORTED BY VANTOANVH"
 	Refresh(Self)
 end
 
