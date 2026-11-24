@@ -1698,6 +1698,11 @@ const function Idle(Self: Presenter): boolean
 	return #Self.Queue == 0 and Self.Workers == 0
 end
 
+-- The builds that wait or run
+const function Backlog(Self: Presenter): number
+	return #Self.Queue + Self.Workers
+end
+
 const function PreloadAsset(Self: Presenter): string?
 	const Preloading = Self.Preloading
 
@@ -1947,4 +1952,4 @@ const function Present(Self: Presenter, Frame: Recorder.Frame)
 	end
 end
 
-return { New = New, Capture = Capture, Ready = Ready, Present = Present, Warm = Warm, StageDemo = StageDemo, Idle = Idle, PreloadAsset = PreloadAsset, EndWarm = EndWarm }
+return { New = New, Capture = Capture, Ready = Ready, Present = Present, Warm = Warm, StageDemo = StageDemo, Idle = Idle, Backlog = Backlog, PreloadAsset = PreloadAsset, EndWarm = EndWarm }

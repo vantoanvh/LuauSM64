@@ -48,6 +48,8 @@ const CreditsGroundsFrames = 120
 const CreditsStartFrames = 90
 const CreditsSceneFrames = 60
 const MaximumCreditsScenes = 30
+-- The builds that may wait while the game goes on in a level (see Advance)
+const BacklogLimit = 64
 const FullHealth = 0x880
 const Start = 0x1000
 const Confirm = 0x8000
@@ -125,8 +127,10 @@ const function Run(Image: buffer, Report: (number, string, string?) -> ()): (Pre
 
 	Stage(Status)
 
-	-- one frame of the game, its lists made before the next
-	const function Advance(Buttons: number, Demo: number?)
+	-- one frame of the game, its lists made before the next, or (Pipelined) made while the game goes on: a visit to a level changes no
+	-- segments, and a list is decoded when its build starts, so the game may run ahead of the builds by BacklogLimit of them; they all end before
+	-- the next visit (Settle)
+	const function Advance(Buttons: number, Demo: number?, Pipelined: boolean?)
 		Pad.Buttons = Buttons
 
 		Recorder.Begin()
@@ -136,7 +140,7 @@ const function Run(Image: buffer, Report: (number, string, string?) -> ()): (Pre
 		Presenter.Warm(View, Recorded, if Game.GameInit.gCurrDemoInput ~= nil then Demo else nil)
 		local SkyReady = Sky.Prepare(Backdrop, Recorded)
 
-		while not (Presenter.Idle(View) and SkyReady) do
+		while not SkyReady or (if Pipelined then Presenter.Backlog(View) > BacklogLimit else not Presenter.Idle(View)) do
 			const Asset = Presenter.PreloadAsset(View) or (if not SkyReady then "Baking skybox" else nil)
 
 			if Asset ~= LastAsset then
@@ -152,6 +156,12 @@ const function Run(Image: buffer, Report: (number, string, string?) -> ()): (Pre
 			end
 		end
 
+		-- the builds that are left get a frame to run in
+		if Pipelined and Presenter.Backlog(View) > 0 then
+			task.wait()
+			LastYield = os.clock()
+		end
+
 		Frames += 1
 
 		if Frames % 30 == 0 or LastAsset ~= nil then
@@ -162,6 +172,21 @@ const function Run(Image: buffer, Report: (number, string, string?) -> ()): (Pre
 				task.wait()
 				LastYield = os.clock()
 			end
+		end
+	end
+
+	-- waits for every build that is left
+	const function Settle()
+		while not Presenter.Idle(View) do
+			const Asset = Presenter.PreloadAsset(View)
+
+			if Asset ~= LastAsset then
+				LastAsset = Asset
+				Report(Frames / Total, Status, Asset or "Scanning display lists")
+			end
+
+			task.wait()
+			LastYield = os.clock()
 		end
 	end
 
@@ -199,6 +224,7 @@ const function Run(Image: buffer, Report: (number, string, string?) -> ()): (Pre
 
 	for Index, Level in Levels do
 		Stage(`Preparing {Level.Name} ({Index}/{#Levels})`)
+		Settle()
 
 		const Mario = LevelUpdate.gMarioStates[1]
 
@@ -209,9 +235,11 @@ const function Run(Image: buffer, Report: (number, string, string?) -> ()): (Pre
 
 		for Frame = 1, if Level.StarSelect then LevelFrames else ShortLevelFrames do
 			Mario.health = FullHealth
-			Advance(if Level.StarSelect and AnswerFrames[Frame] then Confirm else 0)
+			Advance(if Level.StarSelect and AnswerFrames[Frame] then Confirm else 0, nil, true)
 		end
 	end
+
+	Settle()
 
 	-- the credits: the end cutscene in the castle grounds, then the scenes one after the other until the castle grounds come again
 	Stage("Preparing the credits")
@@ -234,6 +262,8 @@ const function Run(Image: buffer, Report: (number, string, string?) -> ()): (Pre
 		Advance(0)
 	end
 
+	local LeftGrounds = false
+
 	for _ = 1, MaximumCreditsScenes do
 		LevelUpdate.level_trigger_warp(Mario, LevelUpdateH.WARP_OP_CREDITS_NEXT)
 
@@ -241,7 +271,9 @@ const function Run(Image: buffer, Report: (number, string, string?) -> ()): (Pre
 			Advance(0)
 		end
 
-		if Area.gCurrLevelNum == LevelTable.LEVEL_CASTLE_GROUNDS then
+		if Area.gCurrLevelNum ~= LevelTable.LEVEL_CASTLE_GROUNDS then
+			LeftGrounds = true
+		elseif LeftGrounds then
 			break
 		end
 	end
